@@ -1,0 +1,131 @@
+# ai-generated: 60% - Claude Code drafted the HTTP layer, reviewed against API.md sections 1, 5, 6, 7
+
+"""svcdesk HTTP API (API.md)."""
+
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from .clock import MalformedClockError, resolve_now
+from .decisions import clock_for_priority
+from .sla import sla_view
+from .state import InvalidTransition, ack, close, reopen, resolve, start
+from .storage import store
+from .tickets import create_ticket, serialize_ticket
+from .validation import ValidationError, validate_create_payload
+
+app = FastAPI()
+
+
+def error_response(status_code: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message}})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    message = exc.detail if isinstance(exc.detail, str) else "not found"
+    code = "not_found" if exc.status_code == 404 else "error"
+    return error_response(exc.status_code, code, message)
+
+
+def _now_from_request(request: Request) -> datetime:
+    header_value = request.headers.get("X-Test-Clock")
+    return resolve_now(header_value)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "svcdesk"}
+
+
+@app.post("/tickets")
+async def create_ticket_endpoint(request: Request):
+    try:
+        now = _now_from_request(request)
+    except MalformedClockError as exc:
+        return error_response(400, "validation", str(exc))
+
+    try:
+        body = await request.json()
+    except Exception:
+        return error_response(400, "validation", "request body must be valid JSON")
+
+    try:
+        fields = validate_create_payload(body)
+    except ValidationError as exc:
+        return error_response(422, "validation", exc.message)
+
+    ticket = create_ticket(fields, now)
+    store.create(ticket)
+    return JSONResponse(status_code=201, content=serialize_ticket(ticket))
+
+
+@app.get("/tickets")
+async def list_tickets(state: str | None = None, priority: str | None = None):
+    tickets = store.list(state, priority)
+    return [serialize_ticket(t) for t in tickets]
+
+
+@app.get("/tickets/{ticket_id}")
+async def get_ticket(ticket_id: str):
+    ticket = store.get(ticket_id)
+    if ticket is None:
+        return error_response(404, "not_found", f"no ticket with id {ticket_id!r}")
+    return serialize_ticket(ticket)
+
+
+@app.get("/tickets/{ticket_id}/sla")
+async def get_ticket_sla(ticket_id: str, request: Request):
+    ticket = store.get(ticket_id)
+    if ticket is None:
+        return error_response(404, "not_found", f"no ticket with id {ticket_id!r}")
+
+    try:
+        now = _now_from_request(request)
+    except MalformedClockError as exc:
+        return error_response(400, "validation", str(exc))
+
+    view = sla_view(ticket, now, clock_for_priority(ticket["priority"]))
+    from .storage import format_instant
+
+    return {
+        "priority": view["priority"],
+        "ack_due_at": format_instant(view["ack_due_at"]),
+        "resolve_due_at": format_instant(view["resolve_due_at"]),
+        "ack_breached": view["ack_breached"],
+        "resolve_breached": view["resolve_breached"],
+        "paused": view["paused"],
+    }
+
+
+_TRANSITIONS = {
+    "ack": ack,
+    "start": start,
+    "resolve": resolve,
+    "close": close,
+    "reopen": reopen,
+}
+
+
+@app.post("/tickets/{ticket_id}/{action}")
+async def do_action(ticket_id: str, action: str, request: Request):
+    if action not in _TRANSITIONS:
+        return error_response(404, "not_found", f"unknown action {action!r}")
+
+    ticket = store.get(ticket_id)
+    if ticket is None:
+        return error_response(404, "not_found", f"no ticket with id {ticket_id!r}")
+
+    try:
+        now = _now_from_request(request)
+    except MalformedClockError as exc:
+        return error_response(400, "validation", str(exc))
+
+    try:
+        _TRANSITIONS[action](ticket, now)
+    except InvalidTransition:
+        return error_response(409, "invalid_transition", f"cannot {action} a ticket in state {ticket['state']!r}")
+
+    return serialize_ticket(ticket)
