@@ -212,53 +212,59 @@ async def get_ticket_events():
     """Export tickets as lifecycle stream (METRIC-SPEC.md section 7)."""
     try:
         tickets = store.list()
+        events = []
+        
+        for ticket in tickets:
+            try:
+                ticket_id = ticket.get("id", "unknown")
+                priority = ticket.get("priority", "P3")
+                
+                # created event
+                if ticket.get("created_at"):
+                    events.append({
+                        "ticket_id": ticket_id,
+                        "at": format_instant(ticket["created_at"]),
+                        "phase": "created",
+                        "priority": priority,
+                        "state": "new",
+                    })
+                
+                # acknowledged event
+                if ticket.get("acknowledged_at"):
+                    events.append({
+                        "ticket_id": ticket_id,
+                        "at": format_instant(ticket["acknowledged_at"]),
+                        "phase": "acknowledged",
+                        "priority": priority,
+                        "state": "acknowledged",
+                    })
+                
+                # resolved event
+                if ticket.get("resolved_at"):
+                    events.append({
+                        "ticket_id": ticket_id,
+                        "at": format_instant(ticket["resolved_at"]),
+                        "phase": "resolved",
+                        "priority": priority,
+                        "state": "resolved",
+                    })
+                
+                # closed event
+                if ticket.get("closed_at"):
+                    events.append({
+                        "ticket_id": ticket_id,
+                        "at": format_instant(ticket["closed_at"]),
+                        "phase": "closed",
+                        "priority": priority,
+                        "state": "closed",
+                    })
+            except Exception:
+                # Skip malformed tickets
+                continue
+        
+        # Sort by at ascending, then ticket_id ascending
+        events.sort(key=lambda e: (e["at"], e["ticket_id"]))
+        
+        return events
     except Exception:
         return JSONResponse(status_code=200, content=[])
-    
-    events = []
-    
-    for ticket in tickets:
-        # created event
-        if ticket.get("created_at"):
-            events.append({
-                "ticket_id": ticket["ticket_id"],
-                "at": format_instant(ticket["created_at"]),
-                "phase": "created",
-                "priority": ticket["priority"],
-                "state": "new",
-            })
-        
-        # acknowledged event
-        if ticket.get("acknowledged_at"):
-            events.append({
-                "ticket_id": ticket["ticket_id"],
-                "at": format_instant(ticket["acknowledged_at"]),
-                "phase": "acknowledged",
-                "priority": ticket["priority"],
-                "state": "acknowledged",
-            })
-        
-        # resolved event
-        if ticket.get("resolved_at"):
-            events.append({
-                "ticket_id": ticket["ticket_id"],
-                "at": format_instant(ticket["resolved_at"]),
-                "phase": "resolved",
-                "priority": ticket["priority"],
-                "state": "resolved",
-            })
-        
-        # closed event
-        if ticket.get("closed_at"):
-            events.append({
-                "ticket_id": ticket["ticket_id"],
-                "at": format_instant(ticket["closed_at"]),
-                "phase": "closed",
-                "priority": ticket["priority"],
-                "state": "closed",
-            })
-    
-    # Sort by at ascending, then ticket_id ascending
-    events.sort(key=lambda e: (e["at"], e["ticket_id"]))
-    
-    return events

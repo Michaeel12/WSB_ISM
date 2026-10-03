@@ -1,7 +1,7 @@
 ---
 lab2_edge_cases:
   E1: {rule: R-08, count: 3}
-  E2: {rule: R-06, count: 0}
+  E2: {rule: R-06, count: 2}
   E3: {rule: R-09, count: 4}
   E4: {rule: R-10, count: 4}
   E5: {rule: R-12, count: 1}
