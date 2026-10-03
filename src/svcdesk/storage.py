@@ -29,7 +29,7 @@ class TicketStore:
         with self._lock:
             return self._tickets.get(ticket_id)
 
-    def list(self, state: str | None, priority: str | None) -> list[dict]:
+    def list(self, state: str | None = None, priority: str | None = None) -> list[dict]:
         with self._lock:
             values = list(self._tickets.values())
         if state is not None:

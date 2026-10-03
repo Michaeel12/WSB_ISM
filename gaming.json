@@ -1,0 +1,6 @@
+{
+  "metric": "deployment_frequency_per_day",
+  "rule": "R-11",
+  "before": {},
+  "after": {}
+}
