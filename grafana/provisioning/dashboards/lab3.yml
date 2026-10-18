@@ -1,0 +1,11 @@
+# ai-generated: 80% - Copilot adapted the Lab 3 file provisioning template
+apiVersion: 1
+providers:
+  - name: lab3
+    folder: svcdesk
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,118 @@
+# ai-generated: 85% - Copilot drafted edge, quiet and reset tests for the declared availability alerts
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+600x70 42427.2+427.2x100'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0x70 172.8+172.8x100'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/tickets/{ticket_id}", http_response_status_code="200"}'
+        values: '0+600x170'
+    alert_rule_test:
+      - eval_time: 104m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts: []
+      - eval_time: 105m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts:
+          - exp_labels: {service: svcdesk, slo: availability, severity: P1}
+            exp_annotations:
+              summary: "/kb/search is rapidly consuming its availability error budget"
+
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+600x370 222528+528x330'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0x370 72+72x330'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/tickets/{ticket_id}", http_response_status_code="200"}'
+        values: '0+600x700'
+    alert_rule_test:
+      - eval_time: 554m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts: []
+      - eval_time: 555m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts:
+          - exp_labels: {service: svcdesk, slo: availability, severity: P2}
+            exp_annotations:
+              summary: "/kb/search is steadily consuming its availability error budget"
+      - eval_time: 591m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts:
+          - exp_labels: {service: svcdesk, slo: availability, severity: P2}
+            exp_annotations:
+              summary: "/kb/search is steadily consuming its availability error budget"
+
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+556.8x180'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0+43.2x180'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts: []
+      - eval_time: 120m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts: []
+      - eval_time: 180m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+582x1080'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0+18x1080'
+    alert_rule_test:
+      - eval_time: 360m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts: []
+      - eval_time: 720m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts: []
+      - eval_time: 1080m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+600x10 6427.2+427.2x74 38640+600x20'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0x10 172.8+172.8x74 12960+0x20'
+    alert_rule_test:
+      - eval_time: 84m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts:
+          - exp_labels: {service: svcdesk, slo: availability, severity: P1}
+            exp_annotations:
+              summary: "/kb/search is rapidly consuming its availability error budget"
+      - eval_time: 93m
+        alertname: KbSearchErrorsBurnFast
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="200"}'
+        values: '0+600x10 6528+528x374 204528+600x50'
+      - series: 'http_server_request_duration_seconds_count{job="svcdesk", instance="svcdesk:8080", http_request_method="GET", http_route="/kb/search", http_response_status_code="502"}'
+        values: '0x10 72+72x374 27000+0x50'
+    alert_rule_test:
+      - eval_time: 384m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts:
+          - exp_labels: {service: svcdesk, slo: availability, severity: P2}
+            exp_annotations:
+              summary: "/kb/search is steadily consuming its availability error budget"
+      - eval_time: 421m
+        alertname: KbSearchErrorsBurnSlow
+        exp_alerts: []

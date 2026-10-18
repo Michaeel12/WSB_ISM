@@ -1,11 +1,15 @@
-# ai-generated: 70% - Claude Code drafted the HTTP layer and metrics endpoints, reviewed against API.md and METRIC-SPEC.md
+# ai-generated: 75% - Copilot added Lab 3 search and request metrics, checked against MONITORING-SPEC.md
 
 """svcdesk HTTP API (API.md)."""
 
+import os
+import time
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Histogram, generate_latest
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .clock import MalformedClockError, resolve_now
@@ -18,6 +22,45 @@ from .tickets import create_ticket, serialize_ticket
 from .validation import ValidationError, validate_create_payload
 
 app = FastAPI()
+registry = CollectorRegistry()
+request_duration = Histogram(
+    "http_server_request_duration_seconds",
+    "HTTP request duration in seconds.",
+    labelnames=("http_request_method", "http_route", "http_response_status_code"),
+    buckets=(
+        0.005, 0.01, 0.025, 0.05, 0.075, 0.1,
+        0.11, 0.12, 0.13, 0.14, 0.15, 0.16,
+        0.18, 0.2, 0.25, 0.5, 1, 2.5, 5, 10,
+    ),
+    registry=registry,
+)
+http_client = httpx.AsyncClient(timeout=httpx.Timeout(5.0))
+
+
+@app.on_event("shutdown")
+async def close_http_client():
+    await http_client.aclose()
+
+
+@app.middleware("http")
+async def observe_requests(request: Request, call_next):
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        route_template = getattr(route, "path", "unmatched")
+        request_duration.labels(
+            request.method,
+            route_template,
+            str(status_code),
+        ).observe(time.perf_counter() - started)
 
 
 def error_response(status_code: int, code: str, message: str) -> JSONResponse:
@@ -39,6 +82,36 @@ def _now_from_request(request: Request) -> datetime:
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "svcdesk"}
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    return Response(content=generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/kb/search")
+async def search_knowledge_base(request: Request, q: str | None = None):
+    if q is None or not 1 <= len(q) <= 200:
+        return error_response(400, "validation", "q must contain between 1 and 200 characters")
+
+    base_url = os.getenv("KB_INDEX_URL", "http://kb-index:8080").rstrip("/")
+    try:
+        upstream = await http_client.get(f"{base_url}/search", params={"q": q})
+    except httpx.RequestError:
+        return error_response(502, "upstream_unavailable", "knowledge-base index is unavailable")
+
+    if upstream.status_code != 200:
+        return error_response(502, "upstream_unavailable", "knowledge-base index is unavailable")
+
+    try:
+        payload = upstream.json()
+    except ValueError:
+        return error_response(502, "upstream_unavailable", "knowledge-base index returned invalid JSON")
+
+    if not isinstance(payload, dict) or "hits" not in payload:
+        return error_response(502, "upstream_unavailable", "knowledge-base index returned an invalid response")
+
+    return {"query": q, "hits": payload["hits"]}
 
 
 @app.post("/tickets")
