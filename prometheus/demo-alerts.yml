@@ -1,0 +1,43 @@
+# ai-generated: 95% - drafted with AI assistance from the Lab 4 specification and the assigned recording
+groups:
+  - name: shop-symptoms
+    rules:
+      - alert: ShopCheckoutErrors
+        expr: |
+          sum(rate(traces_span_metrics_calls_total{service_name="checkout", span_kind="SPAN_KIND_SERVER", status_code="STATUS_CODE_ERROR"}[5m]))
+            /
+          sum(rate(traces_span_metrics_calls_total{service_name="checkout", span_kind="SPAN_KIND_SERVER"}[5m]))
+            > 0.02
+        for: 1m
+        labels:
+          service: checkout
+          severity: P1
+          cluster: shop
+        annotations:
+          summary: "Checkout server errors exceed 2% of requests over five minutes"
+
+      - alert: ShopCheckoutLatency
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(traces_span_metrics_duration_milliseconds_bucket{service_name="checkout", span_kind="SPAN_KIND_SERVER"}[5m])))
+            > 1000
+        for: 1m
+        labels:
+          service: checkout
+          severity: P1
+          cluster: shop
+        annotations:
+          summary: "Checkout server p99 latency exceeds one second"
+
+      - alert: ShopProductCatalogErrors
+        expr: |
+          sum(rate(traces_span_metrics_calls_total{service_name="product-catalog", span_kind="SPAN_KIND_SERVER", status_code="STATUS_CODE_ERROR"}[5m]))
+            /
+          sum(rate(traces_span_metrics_calls_total{service_name="product-catalog", span_kind="SPAN_KIND_SERVER"}[5m]))
+            > 0.02
+        for: 2m
+        labels:
+          service: product-catalog
+          severity: P2
+          cluster: shop
+        annotations:
+          summary: "Product catalog server errors exceed 2% of requests over five minutes"

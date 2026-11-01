@@ -1,0 +1,19 @@
+# ai-generated: 95% - drafted with AI assistance from the Lab 4 route and inhibition checks
+routes:
+  - labels: {alertname: ShopCheckoutErrors, service: checkout, severity: P1, cluster: shop}
+    receivers: [pager]
+  - labels: {alertname: ShopCheckoutLatency, service: checkout, severity: P1, cluster: shop}
+    receivers: [pager]
+  - labels: {alertname: ShopProductCatalogErrors, service: product-catalog, severity: P2, cluster: shop}
+    receivers: [chat]
+  - labels: {alertname: KbSearchErrorsBurnFast, service: svcdesk, slo: availability, severity: P1}
+    receivers: [pager]
+  - labels: {alertname: KbSearchErrorsBurnSlow, service: svcdesk, slo: availability, severity: P2}
+    receivers: [chat]
+inhibitions:
+  - source: {alertname: ShopCheckoutErrors, service: checkout, severity: P1, cluster: shop}
+    target: {alertname: ShopProductCatalogErrors, service: product-catalog, severity: P2, cluster: shop}
+    inhibited: true
+  - source: {alertname: ShopCheckoutErrors, service: checkout, severity: P1, cluster: shop}
+    target: {alertname: ShopProductCatalogErrors, service: product-catalog, severity: P2, cluster: other}
+    inhibited: false

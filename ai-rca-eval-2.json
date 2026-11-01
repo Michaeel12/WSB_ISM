@@ -1,0 +1,40 @@
+{
+  "investigator": {
+    "agent": "Copilot SDK assistant in VS Code",
+    "model": "runtime model identifier not exposed",
+    "mcp_server": "Prometheus HTTP API direct queries against the assigned snapshot",
+    "transcript": "ai-rca/second/transcript.md"
+  },
+  "hypotheses": [
+    {
+      "id": "C1",
+      "hypothesis": "The product-catalog service is returning failed server requests, propagating errors to checkout.",
+      "component": "product-catalog",
+      "predicts": "sum(rate(traces_span_metrics_calls_total{service_name=\"product-catalog\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[5m])) > 0.05",
+      "at": "2026-10-12T07:10:45Z",
+      "result": true,
+      "verdict": "correct",
+      "evidence": "The query returned 0.1410 failed server calls per second at 07:10:45Z and no series at the healthy comparison time, 07:00:45Z."
+    },
+    {
+      "id": "C2",
+      "hypothesis": "The ad service's server-side p99 latency rises sharply during the incident; adManualGc is a plausible seeded change.",
+      "component": "ad",
+      "predicts": "max(histogram_quantile(0.99,sum by (le)(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"ad\",span_kind=\"SPAN_KIND_SERVER\"}[5m])))) > 500",
+      "at": "2026-10-12T07:10:45Z",
+      "result": true,
+      "verdict": "partially_correct",
+      "evidence": "The query returned 796 ms during the incident and was empty at the healthy comparison time. The latency change is supported, but metrics alone cannot prove which seeded flag caused it."
+    },
+    {
+      "id": "C3",
+      "hypothesis": "The payment service is failing server requests and is the source of the checkout errors.",
+      "component": null,
+      "predicts": "sum(rate(traces_span_metrics_calls_total{service_name=\"payment\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[5m])) > 0.05",
+      "at": "2026-10-12T07:10:45Z",
+      "result": false,
+      "verdict": "hallucinated",
+      "evidence": "No payment server-error series satisfied the prediction at 07:10:45Z."
+    }
+  ]
+}
